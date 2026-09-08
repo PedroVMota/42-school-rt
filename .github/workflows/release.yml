@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no_deploy')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
