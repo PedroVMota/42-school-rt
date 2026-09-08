@@ -26,6 +26,11 @@ class Transform
 			_rotation = Mat3::fromEulerXYZ(rx, ry, rz);
 			_rotationInv = _rotation.transposed();
 		}
+		void	setRotation(const Mat3 &rotation)
+		{
+			_rotation = rotation;
+			_rotationInv = _rotation.transposed();
+		}
 
 		const Vec3	&translation() const { return _translation; }
 

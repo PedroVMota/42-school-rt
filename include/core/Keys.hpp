@@ -28,4 +28,16 @@
 	# define KEY_DOWN	0xff54
 #endif
 
+/*
+** X11 protocol event codes / masks (Xproto.h). Both minilibx backends use
+** these same numeric values internally, so they're safe to hardcode here
+** instead of pulling in platform headers (Cocoa has no X11 headers at all).
+** The macOS backend ignores the mask argument to mlx_hook, so only the
+** event code matters there.
+*/
+# define MLX_KEYPRESS		2
+# define MLX_KEYRELEASE		3
+# define MLX_KEYPRESS_MASK		(1L << 0)
+# define MLX_KEYRELEASE_MASK	(1L << 1)
+
 #endif
