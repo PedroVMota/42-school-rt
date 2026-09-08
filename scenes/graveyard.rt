@@ -1,7 +1,7 @@
 # Graveyard: near-black ambient, one sickly green light low on the horizon,
 # a field of cone "tombstones" throwing long shadows across the ground.
 C 0,3,14 0,-0.2,-1 55
-A 0.03 40,45,40
+A 0.5 254,254,254
 
 L -6,1.5,2   0.9 90,140,90
 L 8,0.5,-4   0.25 60,60,90

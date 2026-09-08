@@ -13,6 +13,7 @@ order the first time; after that, jump straight to the file you need.
 8. [App & controls](08-app-controls.md) — window/event loop, expose handling, keybindings.
 9. [Build system](09-build-system.md) — Makefile, build modes, MiniLibX packaging.
 10. [Requirements mapping](10-requirements-mapping.md) — mandatory-part checklist → code.
+11. [Scene file format (`.rt`)](11-scene-file-format.md) — the external scene description format and its parser.
 
 See [`../TODO.md`](../TODO.md) for the requirements checklist itself (derived
 from `en.subject.pdf`); these docs explain *how* the checked items are met,

@@ -11,6 +11,7 @@ C++ ray tracer built on top of [MiniLibX](https://github.com/42Paris/minilibx-li
 ├── minilibx_macos_opengl.tgz   # macOS MiniLibX source (OpenGL, Objective-C) — used by the Makefile
 ├── minilibx_macos_metal.tgz    # macOS MiniLibX source (Metal, Swift) — not used, kept for reference
 ├── docs/                       # implementation documentation, see docs/README.md
+├── scenes/                     # sample .rt scene files, see docs/11-scene-file-format.md
 ├── include/
 │   ├── mlx_wrapper.hpp         # wraps mlx.h in extern "C"
 │   ├── math/                   # Vec3, Mat3
@@ -34,7 +35,7 @@ The `Makefile` detects the OS with `uname -s` and:
 1. Extracts the matching `.tgz` (`minilibx-linux.tgz` on Linux, `minilibx_macos_opengl.tgz` on macOS) if it hasn't been extracted yet.
 2. Builds `libmlx.a` using MiniLibX's **own** build system (`./configure && make` on Linux, `make` on macOS).
 3. Compiles every `.cpp` under `srcs/` (mirroring the folder structure into `obj/`), using every subfolder under `includes/` as an `-I` path.
-4. Links everything into the `program` binary.
+4. Links everything into the `rt` binary.
 
 ## Requirements
 
@@ -68,7 +69,16 @@ make re     # fclean + make
 Run it with:
 
 ```bash
-./rt
+./rt                     # built-in default scene
+./rt scenes/basic.rt      # load a scene from an .rt file
+./rt -v scenes/basic.rt   # -v/--verbose: print each render pass's timing
 ```
 
-Controls: `W`/`A`/`S`/`D` move the camera, arrow keys look around, `Esc` quits. See [`docs/08-app-controls.md`](docs/08-app-controls.md) for details.
+Any non-flag argument is treated as a `.rt` scene file; see
+[`docs/11-scene-file-format.md`](docs/11-scene-file-format.md) for the file
+format and [`scenes/`](scenes/) for sample scenes. Malformed scene files
+fail fast with a `line N: ...` error message instead of rendering.
+
+Controls: `W`/`A`/`S`/`D` move the camera, arrow keys look around (movement
+is continuous while a key is held down), `Esc` quits. See
+[`docs/08-app-controls.md`](docs/08-app-controls.md) for details.

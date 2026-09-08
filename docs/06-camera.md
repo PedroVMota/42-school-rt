@@ -41,7 +41,8 @@ dir  = normalize(forward + right*ndcX + up*ndcY)
 ## Changing the camera live
 
 `setPosition`/`setDirection` are cheap, pure setters — no recomputation
-happens until the next `Renderer::render` call. `App::handleKey` (see
-[08-app-controls.md](08-app-controls.md)) calls these on WASD/arrow input
-and only then triggers a re-render, so moving the camera is just "mutate two
-`Vec3`s, rebuild the basis, re-trace."
+happens until the next `Renderer::render` call. `App::update()` (see
+[08-app-controls.md](08-app-controls.md)) calls these once per event-loop
+tick for every currently held WASD/arrow key, and only then triggers a
+re-render, so moving the camera is just "mutate two `Vec3`s, rebuild the
+basis, re-trace" — repeated on every tick for as long as a key stays held.

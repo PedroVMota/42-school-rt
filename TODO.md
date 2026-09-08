@@ -3,10 +3,6 @@
 Derived from `en.subject.pdf` (v4.1). Options/bonuses are only graded if the
 mandatory part is 100% complete and works without malfunctioning.
 
-## ⚠️ Known gap vs. subject right now
-- [ ] Rename the built binary from `program` to **`rt`** (subject requires the
-      executable to be named `rt`). Update `Makefile` / `READEME.md` accordingly.
-
 ## General constraints (apply throughout)
 - [ ] Language: C, C++, or Rust — latest version, up-to-date good practices
       (project currently uses C++, consistent with this).
@@ -50,7 +46,9 @@ No fixed list/limit; below are the subject's suggested options.
 - [ ] Parallel light
 - [ ] Additional limited objects: parallelograms, disks, half-spheres, tubes, etc.
 - [ ] Bump mapping and colour disruption
-- [ ] External file format for scene description (parser)
+- [x] External file format for scene description (parser) — `SceneParser`
+      (`include/core/SceneParser.hpp`, `srcs/core/SceneParser.cpp`), miniRT-style
+      `.rt` format, see `docs/11-scene-file-format.md`
 - [ ] Reflection
 - [ ] Transparency
 - [ ] Shadow modification according to transparency of elements
@@ -70,7 +68,8 @@ be computed from equations, not from imported vertices/triangles.
 ## Live configuration (required capability for defence)
 - [ ] Provide a way to reconfigure/manipulate scenes live during defence using
       your **own** tooling (not existing public tools) — either:
-  - [ ] A config file format you designed, and/or
+  - [x] A config file format you designed, and/or — `.rt` scene files via
+        `SceneParser`, pass any scene as `./rt path/to/scene.rt`
   - [ ] In-program live configuration/editing.
 
 ## Bonuses
@@ -80,8 +79,9 @@ be computed from equations, not from imported vertices/triangles.
 ## Submission / defence readiness
 - [ ] Work must live in the Git repository; verify file/folder naming is correct.
 - [ ] Be ready to demonstrate every claimed option live during evaluation.
-- [ ] Prepare multiple pre-configured scenes ready to be (re)calculated live —
+- [x] Prepare multiple pre-configured scenes ready to be (re)calculated live —
       pre-rendered images (jpeg/png...) are **not** accepted as proof of options.
+      See `scenes/*.rt`.
 - [ ] Be ready to explain and defend every design decision, including anything
       AI-assisted (per Chapter II: stay able to dive deep into any part without
       relying on AI; identify what was AI-generated).

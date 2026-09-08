@@ -24,7 +24,8 @@ together. This keeps the intersection math testable in isolation from MLX.
 main()
   -> App::App()
        -> mlx_init() / mlx_new_window()
-       -> Scene::buildDefault()        builds objects + lights + camera
+       -> Scene::buildDefault() or SceneParser::parseFile(scene.rt)
+                                        builds objects + lights + camera
        -> App::rerender()
             -> Renderer::render(scene, camera, framebuffer)
                  for each pixel (parallel across rows):
@@ -36,9 +37,10 @@ main()
             -> mlx_put_image_to_window()          blit the whole image
   -> App::run() -> mlx_loop()                     event loop (blocking)
 
-  on expose event  -> App::redraw()    (blit only, no ray tracing)
-  on key event     -> App::handleKey() (moves camera, calls rerender() only
-                                         if something actually changed)
+  on expose event -> App::redraw()  (blit only, no ray tracing)
+  on loop tick    -> App::update()  (checks currently held keys, moves the
+                                      camera, calls rerender() only if
+                                      something actually changed)
 ```
 
 The split between `redraw()` (cheap, blit-only) and `rerender()` (expensive,
