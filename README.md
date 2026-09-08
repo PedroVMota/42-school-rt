@@ -1,6 +1,6 @@
-# mlxcpp
+# RT — Ray Tracer
 
-C++ project built on top of [MiniLibX](https://github.com/42Paris/minilibx-linux), buildable on both Linux and macOS from the same `Makefile`.
+C++ ray tracer built on top of [MiniLibX](https://github.com/42Paris/minilibx-linux), buildable on both Linux and macOS from the same `Makefile`. See [`docs/README.md`](docs/README.md) for implementation notes and [`TODO.md`](TODO.md) for the requirements checklist.
 
 ## Structure
 
@@ -10,15 +10,16 @@ C++ project built on top of [MiniLibX](https://github.com/42Paris/minilibx-linux
 ├── minilibx-linux.tgz          # Linux MiniLibX source (X11)
 ├── minilibx_macos_opengl.tgz   # macOS MiniLibX source (OpenGL, Objective-C) — used by the Makefile
 ├── minilibx_macos_metal.tgz    # macOS MiniLibX source (Metal, Swift) — not used, kept for reference
-├── includes/
+├── docs/                       # implementation documentation, see docs/README.md
+├── include/
 │   ├── mlx_wrapper.hpp         # wraps mlx.h in extern "C"
-│   └── core/App.hpp
-└── srcs/
-    ├── main.cpp
-    └── core/App.cpp
+│   ├── math/                   # Vec3, Mat3
+│   ├── core/                   # Ray, Transform, Camera, Light, Material, Scene, Renderer, FrameBuffer, App
+│   └── objects/                # Object, Plane, Sphere, Cylinder, Cone
+└── srcs/                       # mirrors include/, one .cpp per non-header-only class
 ```
 
-`srcs/` and `includes/` are scanned **recursively** by the `Makefile` — add as many subfolders as you want, no need to edit anything.
+`srcs/` and `include/` are scanned **recursively** by the `Makefile` — add as many subfolders as you want, no need to edit anything.
 
 ### Why `mlx_wrapper.hpp`?
 
@@ -67,5 +68,7 @@ make re     # fclean + make
 Run it with:
 
 ```bash
-./program
+./rt
 ```
+
+Controls: `W`/`A`/`S`/`D` move the camera, arrow keys look around, `Esc` quits. See [`docs/08-app-controls.md`](docs/08-app-controls.md) for details.
