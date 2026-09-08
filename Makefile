@@ -2,14 +2,35 @@
 ##  Project configuration
 ## ============================================================================
 
-NAME		= program
+NAME		= rt
 
 SRCS_DIR	= srcs
 INC_DIR		= include
-OBJ_DIR		= obj
 
 CXX			= c++
-CXXFLAGS	= -Wall -Wextra -std=c++17
+CXXFLAGS	= -Wall -Wextra -std=c++17 -pthread
+
+## ============================================================================
+##  Build mode: release (default) or debug/dev.
+##  Usage: make            -> release
+##         make dev        -> debug (alias: make debug)
+##         make MODE=debug -> debug, explicitly
+##  Object files live under separate obj/<mode> dirs so switching modes never
+##  mixes stale objects built with different flags.
+## ============================================================================
+
+MODE ?= debug
+
+ifeq ($(MODE),debug)
+	OBJ_DIR		= obj/debug
+	CXXFLAGS	+= -g3 -O0 -DDEBUG -fsanitize=address,undefined -fno-omit-frame-pointer
+	MODE_LDFLAGS	= -fsanitize=address,undefined
+else ifeq ($(MODE),release)
+	OBJ_DIR		= obj/release
+	CXXFLAGS	+= -O3 -DNDEBUG -ffast-math -funroll-loops
+else
+	$(error Unknown MODE '$(MODE)' - expected 'debug' or 'release')
+endif
 
 ## ============================================================================
 ##  OS detection
@@ -44,7 +65,7 @@ endif
 ## NOTE: order matters to the linker - libmlx.a must come BEFORE the system
 ## libraries it depends on (X11/Xext on Linux), otherwise their symbols get
 ## dropped before libmlx.a asks for them and you get "undefined reference".
-MLX_LDFLAGS	= -L$(MLX_DIR) -lmlx $(SYS_LDFLAGS) -lm
+MLX_LDFLAGS	= -L$(MLX_DIR) -lmlx $(SYS_LDFLAGS) -lm -pthread
 
 ## ============================================================================
 ##  Project sources / includes (recursive)
@@ -64,7 +85,7 @@ CXXFLAGS	+= $(addprefix -I,$(INC_DIRS))
 all: $(NAME)
 
 $(NAME): $(MLX_LIB) $(OBJS)
-	$(CXX) $(OBJS) $(MLX_LDFLAGS) -o $(NAME)
+	$(CXX) $(MODE_LDFLAGS) $(OBJS) $(MLX_LDFLAGS) -o $(NAME)
 
 $(OBJ_DIR)/%.o: $(SRCS_DIR)/%.cpp
 	@mkdir -p $(dir $@)
@@ -80,8 +101,16 @@ $(MLX_LIB): | $(MLX_DIR)
 $(MLX_DIR):
 	tar -xzf $(MLX_ARCHIVE)
 
+## Convenience aliases to build a specific mode regardless of the current
+## MODE value (they just re-invoke make with MODE set).
+dev debug:
+	$(MAKE) MODE=debug
+
+release:
+	$(MAKE) MODE=release
+
 clean:
-	rm -rf $(OBJ_DIR)
+	rm -rf obj
 
 fclean: clean
 	rm -f $(NAME)
@@ -89,4 +118,4 @@ fclean: clean
 
 re: fclean all
 
-.PHONY: all clean fclean re
+.PHONY: all dev debug release clean fclean re
