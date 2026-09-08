@@ -5,6 +5,7 @@ on:
     branches: [origin]
   pull_request:
     branches: [origin]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
 
 jobs:
   build:
