@@ -1,0 +1,9 @@
+# Something is watching from the dark: pitch-black void, a single blood-red
+# "eye" sphere lit by a tight, near-coincident spotlight so only it (and its
+# own specular glint) is visible.
+C 0,0,6 0,0,-1 40
+A 0.0 0,0,0
+
+L 0.3,0.2,5.5 1.0 255,20,20
+
+sp 0,0,0 2.4 120,0,0

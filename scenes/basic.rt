@@ -1,0 +1,13 @@
+# Camera + ambient (required)
+C 0,1.5,8 0,-0.15,-1 60
+A 0.12 255,255,255
+
+# Two spot lights so shadows overlap (subject fig. VI.3 style)
+L -4,5,-3 1.0 255,255,242
+L 5,3,2   0.6 153,178,255
+
+# The 4 mandatory primitives
+pl 0,-1,0 0,1,0 140,140,153
+sp -2.2,0,0 2 230,51,51
+cy 0.3,-0.2,0 0,1,1 1.4 2 51,178,76
+co 2.4,-1,-0.5 0,1,0 1.6 1.8 64,102,230
