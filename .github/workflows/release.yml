@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [origin]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no_deploy')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version bump from labels
+        id: bump
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          echo "PR labels: $LABELS"
+          BUMP=""
+          if echo "$LABELS" | grep -qi '"breaking change"'; then
+            BUMP="major"
+          elif echo "$LABELS" | grep -qi '"feature"'; then
+            BUMP="minor"
+          elif echo "$LABELS" | grep -qiE '"fix"|"hotfix"'; then
+            BUMP="patch"
+          fi
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          if [ -z "$BUMP" ]; then
+            echo "No release-relevant label (breaking change, feature, fix, hotfix) on this PR. Skipping release."
+          fi
+
+      - name: Compute next version
+        if: steps.bump.outputs.bump != ''
+        id: version
+        run: |
+          LATEST_TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          if [ -z "$LATEST_TAG" ]; then
+            NEW_TAG="v0.1.0"
+          else
+            VERSION=${LATEST_TAG#v}
+            MAJOR=$(echo "$VERSION" | cut -d. -f1)
+            MINOR=$(echo "$VERSION" | cut -d. -f2)
+            PATCH=$(echo "$VERSION" | cut -d. -f3)
+            case "${{ steps.bump.outputs.bump }}" in
+              major) NEW_TAG="v$((MAJOR + 1)).0.0" ;;
+              minor) NEW_TAG="v${MAJOR}.$((MINOR + 1)).0" ;;
+              patch) NEW_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+            esac
+          fi
+          echo "Latest tag: ${LATEST_TAG:-none}"
+          echo "New tag: $NEW_TAG"
+          echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.bump.outputs.bump != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.bump != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
