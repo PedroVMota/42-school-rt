@@ -9,9 +9,12 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  version:
     if: github.event.pull_request.merged == true && !contains(github.event.pull_request.labels.*.name, 'no_deploy')
     runs-on: ubuntu-latest
+    outputs:
+      bump: ${{ steps.bump.outputs.bump }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,19 +62,76 @@ jobs:
           echo "New tag: $NEW_TAG"
           echo "tag=$NEW_TAG" >> "$GITHUB_OUTPUT"
 
+  build:
+    needs: version
+    if: needs.version.outputs.bump != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: rt-linux-x86_64
+          - os: macos-latest
+            asset_name: rt-macos
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc g++ make xorg libxext-dev libbsd-dev
+
+      - name: Install dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: xcode-select --install 2>/dev/null || true
+
+      - name: Build release binary
+        run: make release
+
+      - name: Package binary and scenes
+        run: |
+          PKG_DIR="${{ matrix.asset_name }}"
+          mkdir -p "$PKG_DIR"
+          cp rt "$PKG_DIR/"
+          cp -R scenes "$PKG_DIR/"
+          tar -czf "${{ matrix.asset_name }}.tar.gz" "$PKG_DIR"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}.tar.gz
+
+  release:
+    needs: [version, build]
+    if: needs.version.outputs.bump != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
       - name: Create and push tag
-        if: steps.bump.outputs.bump != ''
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ steps.version.outputs.tag }}" -m "Release ${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
+          git tag -a "${{ needs.version.outputs.tag }}" -m "Release ${{ needs.version.outputs.tag }}"
+          git push origin "${{ needs.version.outputs.tag }}"
 
       - name: Create GitHub Release
-        if: steps.bump.outputs.bump != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
-            --title "${{ steps.version.outputs.tag }}" \
-            --generate-notes
+          gh release create "${{ needs.version.outputs.tag }}" \
+            --title "${{ needs.version.outputs.tag }}" \
+            --generate-notes \
+            artifacts/*.tar.gz
