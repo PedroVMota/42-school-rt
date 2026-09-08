@@ -10,6 +10,7 @@ struct Material
 	float	diffuse      = 0.8f;
 	float	specular     = 0.4f;
 	float	shininess    = 32.0f;
+	float	reflectivity = 0.0f; /* 0 = matte, 1 = perfect mirror */
 };
 
 #endif

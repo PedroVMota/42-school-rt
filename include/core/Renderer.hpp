@@ -15,7 +15,10 @@ class Renderer
 		static void	render(const Scene &scene, const Camera &camera, FrameBuffer &fb);
 
 	private:
+		static constexpr int	kMaxDepth = 5; /* bounces allowed between mirrors facing each other */
+
 		static Vec3	tracePixel(const Scene &scene, const Camera &camera, int x, int y, int width, int height);
+		static Vec3	traceRay(const Scene &scene, const Ray &ray, int depth);
 		static Vec3	shade(const Scene &scene, const HitRecord &rec, const Vec3 &viewDir);
 };
 

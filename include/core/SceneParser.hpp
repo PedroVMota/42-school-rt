@@ -12,13 +12,15 @@
 **   A  ratio               R,G,B          ambient light (ratio in [0,1])
 **   C  x,y,z  dx,dy,dz     fov            camera (fov in degrees, ]0,180[)
 **   L  x,y,z  brightness   [R,G,B]        point light (brightness in [0,1])
-**   sp x,y,z  diameter     R,G,B          sphere
-**   pl x,y,z  dx,dy,dz     R,G,B          plane (point + normal)
-**   cy x,y,z  dx,dy,dz  diameter  height  R,G,B  cylinder (center + axis)
-**   co x,y,z  dx,dy,dz  diameter  height  R,G,B  cone (apex + axis toward base)
+**   sp x,y,z  diameter     R,G,B  [reflectivity]         sphere
+**   pl x,y,z  dx,dy,dz     R,G,B  [reflectivity]         plane (point + normal)
+**   cy x,y,z  dx,dy,dz  diameter  height  R,G,B  [reflectivity]  cylinder (center + axis)
+**   co x,y,z  dx,dy,dz  diameter  height  R,G,B  [reflectivity]  cone (apex + axis toward base)
 **
 ** Exactly one A and one C line are required. Vectors are "x,y,z" (no
-** spaces), colors are "r,g,b" with each channel in [0,255].
+** spaces), colors are "r,g,b" with each channel in [0,255]. The trailing
+** reflectivity is optional and defaults to 0 (matte); 0-1, where 1 is a
+** perfect mirror.
 */
 class SceneParser
 {

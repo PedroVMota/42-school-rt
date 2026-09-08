@@ -1,0 +1,23 @@
+# Mirror room: a chrome sphere and a reflective floor between two
+# non-reflective walls, so bounces are visibly bounded (kMaxDepth in
+# Renderer stops it from recursing forever between the walls).
+C 0,1.5,9 0,-0.1,-1 60
+A 0.1 255,255,255
+
+L -3,5,2  1.0 255,255,242
+L 4,3,-1  0.5 153,178,255
+
+# Reflective floor (last field = reflectivity, optional, defaults to 0)
+pl 0,-1,0    0,1,0    40,40,48    0.6
+
+# Chrome sphere, near-perfect mirror
+sp -1.4,0.4,0  2.8   235,235,240  0.9
+
+# Matte colored sphere so there's something for the mirror to reflect
+sp 2.2,-0.3,-1  1.4  210,60,60    0.0
+
+# Back wall: mildly reflective, keeps recursion from feeling flat
+pl 0,0,-6   0,0,1    60,60,90     0.25
+
+# Non-reflective side pillar for scale/contrast
+cy 3.6,-1,2  0,1,0  1.0  2.2  60,140,90
