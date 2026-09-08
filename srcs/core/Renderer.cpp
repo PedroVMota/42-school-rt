@@ -31,16 +31,34 @@ Vec3	Renderer::shade(const Scene &scene, const HitRecord &rec, const Vec3 &viewD
 	return Vec3::clamp01(color);
 }
 
-Vec3	Renderer::tracePixel(const Scene &scene, const Camera &camera, int x, int y, int width, int height)
+Vec3	Renderer::traceRay(const Scene &scene, const Ray &ray, int depth)
 {
-	Ray ray = camera.rayForPixel(x, y, width, height);
 	HitRecord rec;
 
 	if (!scene.trace(ray, 1e-4f, 1e30f, rec))
 		return Vec3(0.05f, 0.05f, 0.08f); /* background color */
 
 	Vec3 viewDir = -ray.dir;
-	return shade(scene, rec, viewDir);
+	Vec3 color = shade(scene, rec, viewDir);
+
+	if (depth < kMaxDepth && rec.material.reflectivity > 0.0f)
+	{
+		/* Mirror-bounce the incoming ray around the surface normal and
+		** recurse; offset the origin along the normal to avoid the new
+		** ray immediately re-hitting the same surface (reflection acne). */
+		Vec3 reflectDir = ray.dir.reflect(rec.normal).normalized();
+		Ray reflectRay(rec.point + rec.normal * 1e-4f, reflectDir);
+		Vec3 reflected = traceRay(scene, reflectRay, depth + 1);
+		color = color * (1.0f - rec.material.reflectivity) + reflected * rec.material.reflectivity;
+	}
+
+	return color;
+}
+
+Vec3	Renderer::tracePixel(const Scene &scene, const Camera &camera, int x, int y, int width, int height)
+{
+	Ray ray = camera.rayForPixel(x, y, width, height);
+	return traceRay(scene, ray, 0);
 }
 
 void	Renderer::render(const Scene &scene, const Camera &camera, FrameBuffer &fb)

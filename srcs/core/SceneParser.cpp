@@ -117,6 +117,24 @@ namespace
 			fail(lineNo, "'" + id + "' expects " + std::to_string(expected - 1) +
 				" fields, got " + std::to_string(tokens.size() - 1));
 	}
+
+	/* Fields common to every element line are required; a trailing
+	** reflectivity ratio (0-1) is optional and defaults to 0 (matte) so
+	** existing scene files keep parsing unchanged. */
+	void	requireFieldsWithOptionalReflectivity(const std::vector<std::string> &tokens, size_t expected,
+					int lineNo, const std::string &id)
+	{
+		if (tokens.size() != expected && tokens.size() != expected + 1)
+			fail(lineNo, "'" + id + "' expects " + std::to_string(expected - 1) +
+				" fields plus an optional reflectivity, got " + std::to_string(tokens.size() - 1));
+	}
+
+	float	parseOptionalReflectivity(const std::vector<std::string> &tokens, size_t expected, int lineNo)
+	{
+		if (tokens.size() == expected + 1)
+			return toRatio(tokens[expected], lineNo, "reflectivity");
+		return 0.0f;
+	}
 }
 
 Scene	SceneParser::parseFile(const std::string &path, int width, int height, Camera &outCamera)
@@ -180,24 +198,26 @@ Scene	SceneParser::parseFile(const std::string &path, int width, int height, Cam
 		}
 		else if (id == "sp")
 		{
-			requireFields(tokens, 4, lineNo, id);
+			requireFieldsWithOptionalReflectivity(tokens, 4, lineNo, id);
 			Vec3	pos = parseVec3(tokens[1], lineNo, "sphere position");
 			float	diameter = toFloat(tokens[2], lineNo, "sphere diameter");
 			if (diameter <= 0.0f)
 				fail(lineNo, "sphere diameter must be > 0");
 			Material	mat;
 			mat.color = parseColor(tokens[3], lineNo);
+			mat.reflectivity = parseOptionalReflectivity(tokens, 4, lineNo);
 			auto	sphere = std::make_unique<Sphere>(diameter * 0.5f, mat);
 			sphere->transform.setTranslation(pos);
 			scene.objects.push_back(std::move(sphere));
 		}
 		else if (id == "pl")
 		{
-			requireFields(tokens, 4, lineNo, id);
+			requireFieldsWithOptionalReflectivity(tokens, 4, lineNo, id);
 			Vec3	pos = parseVec3(tokens[1], lineNo, "plane position");
 			Vec3	normal = parseUnitish(tokens[2], lineNo, "plane normal");
 			Material	mat;
 			mat.color = parseColor(tokens[3], lineNo);
+			mat.reflectivity = parseOptionalReflectivity(tokens, 4, lineNo);
 			auto	plane = std::make_unique<Plane>(mat);
 			plane->transform.setTranslation(pos);
 			plane->transform.setRotation(Mat3::fromToRotation(Vec3(0, 1, 0), normal));
@@ -205,7 +225,7 @@ Scene	SceneParser::parseFile(const std::string &path, int width, int height, Cam
 		}
 		else if (id == "cy" || id == "co")
 		{
-			requireFields(tokens, 6, lineNo, id);
+			requireFieldsWithOptionalReflectivity(tokens, 6, lineNo, id);
 			Vec3	pos = parseVec3(tokens[1], lineNo, id == "cy" ? "cylinder position" : "cone apex");
 			Vec3	axis = parseUnitish(tokens[2], lineNo, "axis vector");
 			float	diameter = toFloat(tokens[3], lineNo, "diameter");
@@ -216,6 +236,7 @@ Scene	SceneParser::parseFile(const std::string &path, int width, int height, Cam
 				fail(lineNo, "height must be > 0");
 			Material	mat;
 			mat.color = parseColor(tokens[5], lineNo);
+			mat.reflectivity = parseOptionalReflectivity(tokens, 6, lineNo);
 
 			std::unique_ptr<Object>	obj;
 			if (id == "cy")
