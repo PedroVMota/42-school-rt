@@ -35,3 +35,15 @@ bool	Sphere::hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) co
 	rec.material = material;
 	return true;
 }
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+/* params[0] = radius, matching the |local point|^2 = radius^2 test hit()
+** solves above. */
+Object::GPUPrimitive	Sphere::toGPU() const
+{
+	Object::GPUPrimitive	p = packGPU(GPU_PRIMITIVE_SPHERE);
+
+	p.params[0] = _radius;
+	return p;
+}
+#endif

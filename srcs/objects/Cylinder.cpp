@@ -66,3 +66,16 @@ bool	Cylinder::hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) 
 	rec.material = material;
 	return true;
 }
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+/* params[0] = radius, params[1] = halfHeight, matching the side/cap tests
+** hit() runs above (|y| <= halfHeight, x^2+z^2 <= radius^2). */
+Object::GPUPrimitive	Cylinder::toGPU() const
+{
+	Object::GPUPrimitive	p = packGPU(GPU_PRIMITIVE_CYLINDER);
+
+	p.params[0] = _radius;
+	p.params[1] = _halfHeight;
+	return p;
+}
+#endif

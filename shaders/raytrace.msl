@@ -1,0 +1,547 @@
+// GPU compute-shader port of the CPU ray tracer (see srcs/core/Renderer.cpp,
+// srcs/core/Scene.cpp, srcs/objects/*.cpp). Only used when built with
+// `make GPU=1` (GPU_COMPUTING_COMPATIBILITY), loaded by
+// SDL_UTILS::createComputePipeline via SDL's Metal backend, which
+// runtime-compiles raw MSL source through newLibraryWithSource - no offline
+// `xcrun metal`/metallib step required.
+//
+// This is a *compute* kernel, not a vertex/fragment graphics pipeline: it
+// writes finished pixel colors into a plain storage buffer, which the CPU
+// side then blits like any other pixel buffer (see FrameBuffer). No
+// rasterization pipeline is involved, matching the subject's requirement
+// that the final image not be produced by one.
+//
+// Struct layouts below are hand-matched, field for field, to their C++
+// counterparts (Mat3::GPUMat3, Transform::GPUTransform, Material::GPUMaterial,
+// Light::GPULight, Camera::GPUCamera, Object::GPUPrimitive - see the
+// respective headers under include/). Every "vec3" slot is stored as a full
+// float4 (xyz used, w ignored) rather than MSL's native float3, because the
+// C++ side always reserves 16 bytes for a Vec3 (see Vec3.hpp) instead of
+// relying on compiler-inserted std430/MSL padding - this keeps the two
+// languages' layouts byte-identical without guessing at alignment rules.
+//
+// SceneUniform (buffer(0), 128 bytes) is this shader's own addition on top
+// of the Phase 4/5 GPU structs: it bundles the per-frame camera plus the
+// scene-wide scalars (ambient light, primitive/light counts, image size)
+// the kernel needs and that don't belong on any single primitive. Phase 7's
+// Renderer::renderGPU is responsible for uploading a C++ struct with this
+// exact layout every frame.
+//
+// Resource binding order follows SDL's documented MSL/metallib convention
+// (SDL_CreateGPUComputePipeline's doc comment): uniform buffers, then
+// read-only storage buffers, then read-write storage buffers.
+//   buffer(0): SceneUniform            (uniform)
+//   buffer(1): GPUPrimitive[]          (read-only storage)
+//   buffer(2): GPULight[]              (read-only storage)
+//   buffer(3): uint[width*height]      (read-write storage, packed 0x00RRGGBB)
+//
+// NOTE: only the Metal/MSL path is implemented here. A Vulkan/SPIR-V or
+// D3D12/DXIL build of this same kernel (for Linux/Windows) would need its
+// own GLSL/HLSL source and toolchain-based compile step; SDL_UTILS is
+// already format-agnostic (see loadShaderBytecode/createComputePipeline)
+// but no other format's bytecode ships yet, so createComputePipeline will
+// currently only succeed on a Metal-backed device.
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct GPUMat3
+{
+	float4	row0;
+	float4	row1;
+	float4	row2;
+};
+
+struct GPUTransform
+{
+	float4	translation;
+	GPUMat3	rotation;
+	GPUMat3	rotationInv;
+};
+
+struct GPUMaterial
+{
+	float4	color;
+	float	diffuse;
+	float	specular;
+	float	shininess;
+	float	reflectivity;
+};
+
+struct GPULight
+{
+	float4	position;
+	float4	color;
+	float	brightness;
+	float	_pad0;
+	float	_pad1;
+	float	_pad2;
+};
+
+struct GPUCamera
+{
+	float4	position;
+	float4	forward;
+	float4	right;
+	float4	up;
+	float	fovScale;
+	float	aspect;
+	float	_pad0;
+	float	_pad1;
+};
+
+struct GPUPrimitive
+{
+	uint			type;
+	uint			_pad0;
+	uint			_pad1;
+	uint			_pad2;
+	GPUTransform	transform;
+	GPUMaterial		material;
+	float4			params;
+};
+
+struct SceneUniform
+{
+	GPUCamera	camera;
+	float4		ambientColor;
+	float		ambientBrightness;
+	uint		numPrimitives;
+	uint		numLights;
+	uint		width;
+	uint		height;
+	uint		_pad0;
+	uint		_pad1;
+	uint		_pad2;
+};
+
+#define GPU_PRIMITIVE_SPHERE   0u
+#define GPU_PRIMITIVE_PLANE    1u
+#define GPU_PRIMITIVE_CYLINDER 2u
+#define GPU_PRIMITIVE_CONE     3u
+
+struct LocalRay
+{
+	float3	origin;
+	float3	dir;
+};
+
+struct HitInfo
+{
+	float3	point;
+	float3	normal;
+	float3	color;
+	float	diffuse;
+	float	specular;
+	float	shininess;
+	float	reflectivity;
+};
+
+inline float3	mat3_mul(GPUMat3 m, float3 v)
+{
+	return float3(dot(m.row0.xyz, v), dot(m.row1.xyz, v), dot(m.row2.xyz, v));
+}
+
+// Mirrors Transform::toLocal (Transform.hpp).
+inline LocalRay	to_local(GPUTransform t, float3 worldOrigin, float3 worldDir)
+{
+	LocalRay	r;
+
+	r.origin = mat3_mul(t.rotationInv, worldOrigin - t.translation.xyz);
+	r.dir = mat3_mul(t.rotationInv, worldDir);
+	return r;
+}
+
+// Mirrors Transform::pointToWorld / normalToWorld.
+inline float3	point_to_world(GPUTransform t, float3 localPoint)
+{
+	return mat3_mul(t.rotation, localPoint) + t.translation.xyz;
+}
+
+inline float3	normal_to_world(GPUTransform t, float3 localNormal)
+{
+	return normalize(mat3_mul(t.rotation, localNormal));
+}
+
+// Mirrors Sphere::hit (srcs/objects/Sphere.cpp).
+inline bool	hit_sphere(LocalRay ray, float radius, float tMin, float tMax,
+		thread float &outT, thread float3 &outPoint, thread float3 &outNormal)
+{
+	float3	oc = ray.origin;
+	float	a = dot(ray.dir, ray.dir);
+	float	halfB = dot(oc, ray.dir);
+	float	c = dot(oc, oc) - radius * radius;
+	float	discriminant = halfB * halfB - a * c;
+
+	if (discriminant < 0.0)
+		return false;
+
+	float	sqrtD = sqrt(discriminant);
+	float	t = (-halfB - sqrtD) / a;
+
+	if (t <= tMin || t >= tMax)
+	{
+		t = (-halfB + sqrtD) / a;
+		if (t <= tMin || t >= tMax)
+			return false;
+	}
+
+	outT = t;
+	outPoint = ray.origin + ray.dir * t;
+	outNormal = outPoint / radius;
+	return true;
+}
+
+// Mirrors Plane::hit (srcs/objects/Plane.cpp).
+inline bool	hit_plane(LocalRay ray, float tMin, float tMax,
+		thread float &outT, thread float3 &outPoint, thread float3 &outNormal)
+{
+	if (fabs(ray.dir.y) < 1e-6)
+		return false;
+
+	float	t = -ray.origin.y / ray.dir.y;
+
+	if (t <= tMin || t >= tMax)
+		return false;
+
+	outT = t;
+	outPoint = ray.origin + ray.dir * t;
+
+	float3	n = float3(0.0, 1.0, 0.0);
+
+	if (dot(ray.dir, n) > 0.0)
+		n = -n;
+	outNormal = n;
+	return true;
+}
+
+// Mirrors Cylinder::hit (srcs/objects/Cylinder.cpp).
+inline bool	hit_cylinder(LocalRay ray, float radius, float halfHeight, float tMin, float tMaxIn,
+		thread float &outT, thread float3 &outPoint, thread float3 &outNormal)
+{
+	bool	found = false;
+	float	bestT = tMaxIn;
+	float3	bestPoint = float3(0.0);
+	float3	bestNormal = float3(0.0);
+
+	float	a = ray.dir.x * ray.dir.x + ray.dir.z * ray.dir.z;
+
+	if (a > 1e-8)
+	{
+		float	b = 2.0 * (ray.origin.x * ray.dir.x + ray.origin.z * ray.dir.z);
+		float	c = ray.origin.x * ray.origin.x + ray.origin.z * ray.origin.z - radius * radius;
+		float	discriminant = b * b - 4.0 * a * c;
+
+		if (discriminant >= 0.0)
+		{
+			float	sqrtD = sqrt(discriminant);
+			float	roots[2] = { (-b - sqrtD) / (2.0 * a), (-b + sqrtD) / (2.0 * a) };
+
+			for (int i = 0; i < 2; ++i)
+			{
+				float	t = roots[i];
+
+				if (t <= tMin || t >= bestT)
+					continue;
+
+				float	y = ray.origin.y + t * ray.dir.y;
+
+				if (y < -halfHeight || y > halfHeight)
+					continue;
+
+				bestT = t;
+				bestPoint = ray.origin + ray.dir * t;
+				bestNormal = float3(bestPoint.x, 0.0, bestPoint.z) / radius;
+				found = true;
+			}
+		}
+	}
+
+	if (fabs(ray.dir.y) > 1e-8)
+	{
+		float	capsY[2] = { halfHeight, -halfHeight };
+
+		for (int i = 0; i < 2; ++i)
+		{
+			float	capY = capsY[i];
+			float	t = (capY - ray.origin.y) / ray.dir.y;
+
+			if (t <= tMin || t >= bestT)
+				continue;
+
+			float3	p = ray.origin + ray.dir * t;
+
+			if (p.x * p.x + p.z * p.z > radius * radius)
+				continue;
+
+			bestT = t;
+			bestPoint = p;
+			bestNormal = float3(0.0, capY > 0.0 ? 1.0 : -1.0, 0.0);
+			found = true;
+		}
+	}
+
+	if (!found)
+		return false;
+
+	if (dot(ray.dir, bestNormal) > 0.0)
+		bestNormal = -bestNormal;
+
+	outT = bestT;
+	outPoint = bestPoint;
+	outNormal = bestNormal;
+	return true;
+}
+
+// Mirrors Cone::hit (srcs/objects/Cone.cpp).
+inline bool	hit_cone(LocalRay ray, float radius, float height, float tMin, float tMaxIn,
+		thread float &outT, thread float3 &outPoint, thread float3 &outNormal)
+{
+	bool	found = false;
+	float	bestT = tMaxIn;
+	float3	bestPoint = float3(0.0);
+	float3	bestNormal = float3(0.0);
+
+	float	k = radius / height;
+	float	k2 = k * k;
+	float	a = ray.dir.x * ray.dir.x + ray.dir.z * ray.dir.z - k2 * ray.dir.y * ray.dir.y;
+	float	b = 2.0 * (ray.origin.x * ray.dir.x + ray.origin.z * ray.dir.z
+			- k2 * ray.origin.y * ray.dir.y);
+	float	c = ray.origin.x * ray.origin.x + ray.origin.z * ray.origin.z
+			- k2 * ray.origin.y * ray.origin.y;
+
+	if (fabs(a) > 1e-8)
+	{
+		float	discriminant = b * b - 4.0 * a * c;
+
+		if (discriminant >= 0.0)
+		{
+			float	sqrtD = sqrt(discriminant);
+			float	roots[2] = { (-b - sqrtD) / (2.0 * a), (-b + sqrtD) / (2.0 * a) };
+
+			for (int i = 0; i < 2; ++i)
+			{
+				float	t = roots[i];
+
+				if (t <= tMin || t >= bestT)
+					continue;
+
+				float	y = ray.origin.y + t * ray.dir.y;
+
+				if (y < 0.0 || y > height)
+					continue;
+
+				bestT = t;
+				bestPoint = ray.origin + ray.dir * t;
+				bestNormal = normalize(float3(bestPoint.x, -k2 * bestPoint.y, bestPoint.z));
+				found = true;
+			}
+		}
+	}
+	else if (fabs(b) > 1e-8)
+	{
+		float	t = -c / b;
+
+		if (t > tMin && t < bestT)
+		{
+			float	y = ray.origin.y + t * ray.dir.y;
+
+			if (y >= 0.0 && y <= height)
+			{
+				bestT = t;
+				bestPoint = ray.origin + ray.dir * t;
+				bestNormal = normalize(float3(bestPoint.x, -k2 * bestPoint.y, bestPoint.z));
+				found = true;
+			}
+		}
+	}
+
+	if (fabs(ray.dir.y) > 1e-8)
+	{
+		float	t = (height - ray.origin.y) / ray.dir.y;
+
+		if (t > tMin && t < bestT)
+		{
+			float3	p = ray.origin + ray.dir * t;
+
+			if (p.x * p.x + p.z * p.z <= radius * radius)
+			{
+				bestT = t;
+				bestPoint = p;
+				bestNormal = float3(0.0, 1.0, 0.0);
+				found = true;
+			}
+		}
+	}
+
+	if (!found)
+		return false;
+
+	if (dot(ray.dir, bestNormal) > 0.0)
+		bestNormal = -bestNormal;
+
+	outT = bestT;
+	outPoint = bestPoint;
+	outNormal = bestNormal;
+	return true;
+}
+
+// Type-dispatches to the right hit_* above, then converts the local-space
+// result back to world space via the primitive's own transform - mirrors
+// what each Object::hit() override does after calling transform.toLocal().
+inline bool	hit_primitive(thread const GPUPrimitive &prim, float3 worldOrigin, float3 worldDir,
+		float tMin, float tMax, thread HitInfo &outHit, thread float &outT)
+{
+	LocalRay	local = to_local(prim.transform, worldOrigin, worldDir);
+	float		t = 0.0;
+	float3		localPoint = float3(0.0);
+	float3		localNormal = float3(0.0);
+	bool		hit = false;
+
+	if (prim.type == GPU_PRIMITIVE_SPHERE)
+		hit = hit_sphere(local, prim.params.x, tMin, tMax, t, localPoint, localNormal);
+	else if (prim.type == GPU_PRIMITIVE_PLANE)
+		hit = hit_plane(local, tMin, tMax, t, localPoint, localNormal);
+	else if (prim.type == GPU_PRIMITIVE_CYLINDER)
+		hit = hit_cylinder(local, prim.params.x, prim.params.y, tMin, tMax, t, localPoint, localNormal);
+	else if (prim.type == GPU_PRIMITIVE_CONE)
+		hit = hit_cone(local, prim.params.x, prim.params.y, tMin, tMax, t, localPoint, localNormal);
+
+	if (!hit)
+		return false;
+
+	outT = t;
+	outHit.point = point_to_world(prim.transform, localPoint);
+	outHit.normal = normal_to_world(prim.transform, localNormal);
+	outHit.color = prim.material.color.xyz;
+	outHit.diffuse = prim.material.diffuse;
+	outHit.specular = prim.material.specular;
+	outHit.shininess = prim.material.shininess;
+	outHit.reflectivity = prim.material.reflectivity;
+	return true;
+}
+
+// Mirrors Scene::trace: closest-hit query across every primitive.
+inline bool	trace_closest(constant SceneUniform &scene, const device GPUPrimitive *primitives,
+		float3 origin, float3 dir, float tMin, float tMaxIn, thread HitInfo &outHit)
+{
+	bool	found = false;
+	float	closest = tMaxIn;
+
+	for (uint i = 0; i < scene.numPrimitives; ++i)
+	{
+		GPUPrimitive	prim = primitives[i];
+		HitInfo			hit;
+		float			t;
+
+		if (hit_primitive(prim, origin, dir, tMin, closest, hit, t))
+		{
+			closest = t;
+			outHit = hit;
+			found = true;
+		}
+	}
+	return found;
+}
+
+// Mirrors Scene::isOccluded: true if anything blocks [origin, origin + dir*tMax].
+inline bool	trace_shadow(constant SceneUniform &scene, const device GPUPrimitive *primitives,
+		float3 origin, float3 dir, float tMin, float tMax)
+{
+	for (uint i = 0; i < scene.numPrimitives; ++i)
+	{
+		GPUPrimitive	prim = primitives[i];
+		HitInfo			hit;
+		float			t;
+
+		if (hit_primitive(prim, origin, dir, tMin, tMax, hit, t))
+			return true;
+	}
+	return false;
+}
+
+// Mirrors Renderer::shade: ambient + per-light diffuse/specular, shadow-tested.
+inline float3	shade(constant SceneUniform &scene, const device GPUPrimitive *primitives,
+		const device GPULight *lights, thread const HitInfo &hit, float3 viewDir)
+{
+	float3	color = hit.color * scene.ambientColor.xyz * scene.ambientBrightness;
+
+	for (uint i = 0; i < scene.numLights; ++i)
+	{
+		GPULight	light = lights[i];
+		float3		toLightVec = light.position.xyz - hit.point;
+		float		dist = length(toLightVec);
+		float3		toLight = (dist < 1e-6) ? float3(0.0) : (toLightVec / dist);
+		bool		occluded = (dist >= 1e-6)
+			&& trace_shadow(scene, primitives, hit.point, toLight, 1e-3, dist - 1e-3);
+
+		if (occluded)
+			continue;
+
+		float	diffuseFactor = max(0.0, dot(hit.normal, toLight));
+		float3	diffuse = hit.color * light.color.xyz * (diffuseFactor * hit.diffuse * light.brightness);
+
+		float3	halfVec = normalize(toLight + viewDir);
+		float	specAngle = max(0.0, dot(hit.normal, halfVec));
+		float	specularFactor = pow(specAngle, hit.shininess);
+		float3	specular = light.color.xyz * (specularFactor * hit.specular * light.brightness);
+
+		color += diffuse + specular;
+	}
+	return clamp(color, 0.0, 1.0);
+}
+
+// Mirrors Renderer::traceRay's recursive mirror-bounce, unrolled into an
+// iterative accumulate-by-weight loop (compute kernels don't recurse):
+// traceRay(depth) = shade*(1-refl) + traceRay(depth+1)*refl, expanded out.
+kernel void raytrace_main(
+	constant SceneUniform &scene [[buffer(0)]],
+	const device GPUPrimitive *primitives [[buffer(1)]],
+	const device GPULight *lights [[buffer(2)]],
+	device uint *outPixels [[buffer(3)]],
+	uint2 gid [[thread_position_in_grid]])
+{
+	if (gid.x >= scene.width || gid.y >= scene.height)
+		return;
+
+	GPUCamera	cam = scene.camera;
+	float		ndcX = (2.0 * ((float(gid.x) + 0.5) / float(scene.width)) - 1.0) * cam.aspect * cam.fovScale;
+	float		ndcY = (1.0 - 2.0 * ((float(gid.y) + 0.5) / float(scene.height))) * cam.fovScale;
+	float3		dir = normalize(cam.forward.xyz + cam.right.xyz * ndcX + cam.up.xyz * ndcY);
+	float3		origin = cam.position.xyz;
+
+	const float3	kBackground = float3(0.05, 0.05, 0.08);
+	const int		kMaxDepth = 5;
+	float3			accumColor = float3(0.0);
+	float3			weight = float3(1.0);
+
+	for (int depth = 0; depth <= kMaxDepth; ++depth)
+	{
+		HitInfo	hit;
+
+		if (!trace_closest(scene, primitives, origin, dir, 1e-4, 1e30, hit))
+		{
+			accumColor += weight * kBackground;
+			break;
+		}
+
+		float3	viewDir = -dir;
+		float3	local = shade(scene, primitives, lights, hit, viewDir);
+		float	refl = hit.reflectivity;
+
+		accumColor += weight * local * (1.0 - refl);
+		if (depth == kMaxDepth || refl <= 0.0)
+			break;
+
+		weight *= refl;
+		origin = hit.point + hit.normal * 1e-4;
+		dir = normalize(reflect(dir, hit.normal));
+	}
+
+	float3	c = clamp(accumColor, 0.0, 1.0) * 255.0;
+	uint	r = uint(c.r);
+	uint	g = uint(c.g);
+	uint	b = uint(c.b);
+
+	outPixels[gid.y * scene.width + gid.x] = (r << 16) | (g << 8) | b;
+}

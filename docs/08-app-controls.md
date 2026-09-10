@@ -3,6 +3,14 @@
 `include/core/App.hpp` / `srcs/core/App.cpp`, `include/core/Keys.hpp`,
 `srcs/main.cpp`.
 
+This document covers the default MiniLibX build. `App`/`Keys.hpp` also have
+an SDL3 backend, selected at compile time via `make GPU=1` — same private
+method surface (`handleKeyDown`/`handleKeyUp`/`update`/`redraw`/`rerender`),
+different windowing calls underneath (a poll loop instead of MLX's
+callback hooks). See [12-gpu-compute.md](12-gpu-compute.md)'s "Windowing &
+events" section for that side; everything below is the MLX (default)
+behavior.
+
 ## Lifecycle
 
 ```cpp

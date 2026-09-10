@@ -10,6 +10,10 @@ class Plane : public Object
 		explicit Plane(const Material &mat) : Object(mat) {}
 
 		bool	hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) const override;
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+		Object::GPUPrimitive	toGPU() const override;
+#endif
 };
 
 #endif

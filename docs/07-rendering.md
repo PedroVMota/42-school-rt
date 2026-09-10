@@ -3,6 +3,15 @@
 `include/core/FrameBuffer.hpp`, `include/core/Renderer.hpp` /
 `srcs/core/Renderer.cpp`, `include/core/Scene.hpp`.
 
+This document covers the default CPU/MiniLibX path. Built with `make GPU=1`,
+`FrameBuffer` instead wraps an SDL streaming texture and `Renderer::render`
+dispatches the same ray-object intersection and shading math as an SDL3 GPU
+**compute** shader (never a rasterization/graphics pipeline — see the
+subject-compliance discussion in that doc) instead of tracing on the CPU.
+See [12-gpu-compute.md](12-gpu-compute.md) for the full GPU architecture,
+including a pixel-level diff proving the two paths render identically;
+everything below is the CPU/MLX (default) behavior.
+
 ## FrameBuffer
 
 Thin wrapper around an MLX image (`mlx_new_image` + `mlx_get_data_addr`).
@@ -60,8 +69,13 @@ intrinsics: ray tracing is embarrassingly parallel per pixel, so spreading
 work across all CPU cores gives a much larger, more portable speedup than
 manually vectorizing the per-pixel math would, while `Vec3`'s alignment
 (see [02-math.md](02-math.md)) still lets the compiler auto-vectorize the
-inner vector arithmetic on top of that. GPU rendering is off the table per
-the subject's constraints (no GPU pipeline for the final image).
+inner vector arithmetic on top of that. This is also exactly why porting the
+same per-pixel work to a GPU **compute** shader (`make GPU=1`, see
+[12-gpu-compute.md](12-gpu-compute.md)) is such a natural fit later: no
+change to the parallelization *strategy*, just which kind of hardware
+thread runs each independent pixel. A GPU **rasterization** pipeline for
+the final image, on the other hand, is off the table per the subject's
+constraints regardless of build flag.
 
 ## Redraw vs. re-render — the "expose" requirement
 

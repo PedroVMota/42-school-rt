@@ -60,6 +60,29 @@ class Camera
 			return Ray(_position, dir);
 		}
 
+#ifdef GPU_COMPUTING_COMPATIBILITY
+		/* Lets the compute shader rebuild rayForPixel()'s exact primary-ray
+		** math per invocation instead of re-deriving it from raw
+		** position/lookDir/fov. Four vec4s (64 bytes) plus 2 trailing
+		** floats need 8 bytes of padding to round the struct up to the
+		** required 16-byte-multiple std430 size (80 bytes). */
+		struct GPUCamera
+		{
+			Vec3	position;
+			Vec3	forward;
+			Vec3	right;
+			Vec3	up;
+			float	fovScale;
+			float	aspect;
+			float	_pad[2];
+		};
+
+		GPUCamera	toGPU() const
+		{
+			return GPUCamera{ _position, _forward, _right, _up, _fovScale, _aspect, { 0.0f, 0.0f } };
+		}
+#endif
+
 	private:
 		Vec3	_position;
 		Vec3	_forward;

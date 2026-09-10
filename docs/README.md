@@ -14,6 +14,7 @@ order the first time; after that, jump straight to the file you need.
 9. [Build system](09-build-system.md) — Makefile, build modes, MiniLibX packaging.
 10. [Requirements mapping](10-requirements-mapping.md) — mandatory-part checklist → code.
 11. [Scene file format (`.rt`)](11-scene-file-format.md) — the external scene description format and its parser.
+12. [GPU compute backend](12-gpu-compute.md) — the optional `make GPU=1` build: SDL3 windowing, an SDL3 GPU compute-shader port of the ray tracer, and why it stays within the subject's "no GPU rasterization pipeline for the final image" rule.
 
 See [`../TODO.md`](../TODO.md) for the requirements checklist itself (derived
 from `en.subject.pdf`); these docs explain *how* the checked items are met,

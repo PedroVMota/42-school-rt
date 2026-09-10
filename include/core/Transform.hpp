@@ -51,6 +51,25 @@ class Transform
 			return (_rotation * localNormal).normalized();
 		}
 
+#ifdef GPU_COMPUTING_COMPATIBILITY
+		/* Mirrors toLocal()/pointToWorld()'s inputs: the compute shader
+		** needs both the rotation and its inverse (it can't invert a mat3
+		** on the fly as cheaply as this class already can on the CPU
+		** side), plus the translation, to do the same local/world
+		** conversions per-primitive that Object::hit() does today. */
+		struct GPUTransform
+		{
+			Vec3			translation;
+			Mat3::GPUMat3	rotation;
+			Mat3::GPUMat3	rotationInv;
+		};
+
+		GPUTransform	toGPU() const
+		{
+			return GPUTransform{ _translation, _rotation.toGPU(), _rotationInv.toGPU() };
+		}
+#endif
+
 	private:
 		Vec3	_translation;
 		Mat3	_rotation;

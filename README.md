@@ -1,6 +1,6 @@
 # RT — Ray Tracer
 
-C++ ray tracer built on top of [MiniLibX](https://github.com/42Paris/minilibx-linux), buildable on both Linux and macOS from the same `Makefile`. See [`docs/README.md`](docs/README.md) for implementation notes and [`TODO.md`](TODO.md) for the requirements checklist.
+C++ ray tracer built on top of [MiniLibX](https://github.com/42Paris/minilibx-linux) by default, buildable on both Linux and macOS from the same `Makefile`. An optional second backend (`make GPU=1`) swaps in SDL3 windowing and an SDL3 GPU **compute**-shader port of the ray tracer — see [`docs/12-gpu-compute.md`](docs/12-gpu-compute.md). See [`docs/README.md`](docs/README.md) for implementation notes and [`TODO.md`](TODO.md) for the requirements checklist.
 
 ## Structure
 
@@ -10,17 +10,21 @@ C++ ray tracer built on top of [MiniLibX](https://github.com/42Paris/minilibx-li
 ├── minilibx-linux.tgz          # Linux MiniLibX source (X11)
 ├── minilibx_macos_opengl.tgz   # macOS MiniLibX source (OpenGL, Objective-C) — used by the Makefile
 ├── minilibx_macos_metal.tgz    # macOS MiniLibX source (Metal, Swift) — not used, kept for reference
+├── SDL3-<version>/             # fetched + built by `make GPU=1` on first run, gitignored — not committed
 ├── docs/                       # implementation documentation, see docs/README.md
 ├── scenes/                     # sample .rt scene files, see docs/11-scene-file-format.md
+├── shaders/
+│   └── raytrace.msl            # GPU compute-shader port of the ray tracer (GPU=1 build only), see docs/12-gpu-compute.md
 ├── include/
 │   ├── mlx_wrapper.hpp         # wraps mlx.h in extern "C"
+│   ├── sdl_wrapper.hpp         # GPU_COMPUTING_COMPATIBILITY-gated <SDL3/SDL.h> include point
 │   ├── math/                   # Vec3, Mat3
-│   ├── core/                   # Ray, Transform, Camera, Light, Material, Scene, Renderer, FrameBuffer, App
+│   ├── core/                   # Ray, Transform, Camera, Light, Material, Scene, Renderer, FrameBuffer, App, SDLUtils
 │   └── objects/                # Object, Plane, Sphere, Cylinder, Cone
 └── srcs/                       # mirrors include/, one .cpp per non-header-only class
 ```
 
-`srcs/` and `include/` are scanned **recursively** by the `Makefile` — add as many subfolders as you want, no need to edit anything.
+`srcs/` and `include/` are scanned **recursively** by the `Makefile` — add as many subfolders as you want, no need to edit anything. Every class that touches windowing or rendering (`App`, `FrameBuffer`, `Renderer`, `Keys.hpp`, plus the GPU-side data layout on `Vec3`/`Mat3`/`Transform`/`Material`/`Light`/`Camera`/the primitives) has a `#ifdef GPU_COMPUTING_COMPATIBILITY` branch alongside its default MiniLibX/CPU implementation; `SDLUtils.hpp`/`.cpp` and everything under `shaders/` only exist for the `GPU=1` build.
 
 ### Why `mlx_wrapper.hpp`?
 
@@ -57,14 +61,26 @@ sudo apt-get install gcc g++ make xorg libxext-dev libbsd-dev
 xcode-select --install
 ```
 
+**Additionally, for `make GPU=1`** (either OS): `cmake` and `curl`, used to
+fetch and build SDL3 from source the same way MiniLibX is built — no
+`brew`/`apt` SDL3 package needed, see
+[`docs/12-gpu-compute.md`](docs/12-gpu-compute.md#sdl3-is-fetched-and-built-by-the-makefile-not-a-system-dependency).
+
 ## Build
 
 ```bash
-make        # build (extracts + builds MiniLibX on first run, then the project)
-make clean  # remove object files
-make fclean # clean + remove the binary and the extracted MiniLibX source
-make re     # fclean + make
+make            # default: MiniLibX backend (extracts + builds MiniLibX on first run, then the project)
+make GPU=1      # SDL3 backend + SDL3 GPU compute-shader ray tracing (fetches + builds SDL3 on first run)
+make clean      # remove object files
+make fclean     # clean + remove the binary and the extracted MiniLibX/SDL3 sources
+make re         # fclean + make
 ```
+
+`make GPU=1` produces the exact same `rt` executable name and CLI, just
+built against a different backend — see
+[`docs/12-gpu-compute.md`](docs/12-gpu-compute.md) for what actually
+changes under the hood and why it still satisfies the subject's "no GPU
+rasterization pipeline for the final image" rule.
 
 Run it with:
 
