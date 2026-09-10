@@ -24,3 +24,13 @@ bool	Plane::hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) con
 	rec.material = material;
 	return true;
 }
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+/* No extra scalars needed: local-space equations already fully describe
+** "y = 0, normal = (0,1,0)" via the shared transform, so params stays
+** zeroed from packGPU(). */
+Object::GPUPrimitive	Plane::toGPU() const
+{
+	return packGPU(GPU_PRIMITIVE_PLANE);
+}
+#endif

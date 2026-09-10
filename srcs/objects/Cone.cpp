@@ -84,3 +84,17 @@ bool	Cone::hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) cons
 	rec.material = material;
 	return true;
 }
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+/* params[0] = radius, params[1] = height, matching the k = radius/height
+** side-surface equation and the [0, height] / base-cap tests hit() runs
+** above. */
+Object::GPUPrimitive	Cone::toGPU() const
+{
+	Object::GPUPrimitive	p = packGPU(GPU_PRIMITIVE_CONE);
+
+	p.params[0] = _radius;
+	p.params[1] = _height;
+	return p;
+}
+#endif

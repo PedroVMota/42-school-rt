@@ -11,6 +11,10 @@ class Sphere : public Object
 
 		bool	hit(const Ray &worldRay, float tMin, float tMax, HitRecord &rec) const override;
 
+#ifdef GPU_COMPUTING_COMPATIBILITY
+		Object::GPUPrimitive	toGPU() const override;
+#endif
+
 	private:
 		float	_radius;
 };
