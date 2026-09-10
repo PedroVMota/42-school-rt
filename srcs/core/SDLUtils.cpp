@@ -25,6 +25,22 @@ namespace
 				return nullptr;
 		}
 	}
+
+	std::chrono::steady_clock::time_point	lastFrameTime = std::chrono::steady_clock::now();
+}
+
+void	SDL_UTILS::resetDeltaTime()
+{
+	lastFrameTime = std::chrono::steady_clock::now();
+}
+
+float	SDL_UTILS::getDeltaTime()
+{
+	std::chrono::steady_clock::time_point	now = std::chrono::steady_clock::now();
+	float									delta = std::chrono::duration<float>(now - lastFrameTime).count();
+
+	lastFrameTime = now;
+	return delta;
 }
 
 SDL_GPUDevice	*SDL_UTILS::createDevice(SDL_Window *window)

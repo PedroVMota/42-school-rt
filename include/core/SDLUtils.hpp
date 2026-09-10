@@ -4,6 +4,7 @@
 #ifdef GPU_COMPUTING_COMPATIBILITY
 
 #include "sdl_wrapper.hpp"
+#include <chrono>
 #include <cstdint>
 #include <vector>
 
@@ -21,6 +22,17 @@
 */
 namespace SDL_UTILS
 {
+
+	/* Marks "now" as the reference point for the next getDeltaTime() call.
+	** Call once right before the render loop starts. */
+	void	resetDeltaTime();
+
+	/* Seconds elapsed since the previous call to getDeltaTime() (or since
+	** resetDeltaTime() if this is the first call), as a float. Advances the
+	** internal reference point each call, so call it exactly once per
+	** frame. */
+	float	getDeltaTime();
+
 	/* Creates a GPU device claimed against `window`, offering every shader
 	** format SDL3 knows how to consume (SPIR-V/MSL/metallib/DXIL) so the
 	** platform's default driver can pick the one it needs. Returns nullptr

@@ -64,6 +64,7 @@ void	App::run()
 	bool		running = true;
 	SDL_Event	event;
 
+	SDL_UTILS::resetDeltaTime();
 	while (running)
 	{
 		while (SDL_PollEvent(&event))
@@ -224,8 +225,13 @@ void	App::handleKeyUp(int keycode)
 
 void	App::update()
 {
-	const float	moveSpeed = 0.3f;
-	const float	turnSpeed = 0.06f;
+#ifdef GPU_COMPUTING_COMPATIBILITY
+	const float	dt = SDL_UTILS::getDeltaTime();
+#else
+	const float	dt = 1.0f / 60.0f;
+#endif
+	const float	moveSpeed = 3.0f * dt;
+	const float	turnSpeed = 1.5f * dt;
 	Vec3		pos = _camera.position();
 	Vec3		fwd = _camera.forward();
 	Vec3		right = _camera.right();
