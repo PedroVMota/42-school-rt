@@ -75,6 +75,18 @@ be computed from equations, not from imported vertices/triangles.
 ## Bonuses
 - [ ] Anything beyond the listed options that's outstanding can earn bonus
       points; final mark can go up to 125.
+- [x] GPU compute acceleration (`make GPU=1`) — an SDL3 backend
+      (`include/sdl_wrapper.hpp`, `include/core/SDLUtils.hpp` /
+      `srcs/core/SDLUtils.cpp`) plus a full SDL3 GPU compute-shader port of
+      the ray tracer (`shaders/raytrace.msl`), gated behind
+      `GPU_COMPUTING_COMPATIBILITY` so the default MiniLibX build is
+      untouched. Verified pixel-identical (99.998% of pixels exact match) to
+      the CPU renderer on the same scene. Per Chapter IV's explicit note,
+      this is GPU *compute*, never a rasterization pipeline for the final
+      image — see `docs/12-gpu-compute.md` for the full writeup, including
+      the one known gap: only the Metal/MSL shader format is implemented
+      and tested (no Vulkan/SPIR-V or D3D12/DXIL shader source has been
+      authored, so this only actually runs the compute path on macOS).
 
 ## Submission / defence readiness
 - [ ] Work must live in the Git repository; verify file/folder naming is correct.

@@ -17,8 +17,9 @@ implements each item. Use this to quickly point at proof during defence.
 | Code in C/C++/Rust, up-to-date practices | C++17 throughout, `Makefile` enforces `-std=c++17 -Wall -Wextra` |
 | No memory leaks | RAII ownership only (`std::unique_ptr<Object>` in `Scene::objects`, `std::unique_ptr<FrameBuffer>` in `App`); no raw `new`/manual `delete` anywhere in the render path — see [01-overview.md](01-overview.md) "Object lifetime" |
 | Executable named `rt` | `Makefile`: `NAME = rt` |
-| GPU not used for final image | Software rasterization into an MLX image buffer (`FrameBuffer::setPixel`); no GL/Metal/Vulkan/DirectX shader anywhere in the codebase |
+| GPU not used for final image | Default build: software rasterization into an MLX image buffer (`FrameBuffer::setPixel`), no GPU shader anywhere. `make GPU=1` build: an SDL3 GPU **compute** shader accelerates the ray-tracing math itself (subject-permitted, see Ch. IV's GPU-computing note), but its output is a plain storage buffer blitted like any CPU frame — no vertex/fragment/geometry (rasterization) pipeline is ever in the path that produces a pixel, in either build. See [12-gpu-compute.md](12-gpu-compute.md) |
 | **Option:** external file format for scene description | `SceneParser::parseFile` (`include/core/SceneParser.hpp`, `srcs/core/SceneParser.cpp`), a miniRT-style `.rt` text format — see [11-scene-file-format.md](11-scene-file-format.md) |
+| **Bonus:** GPU compute acceleration | `make GPU=1` — SDL3 windowing backend + an SDL3 GPU compute-shader port of the entire ray tracer (`shaders/raytrace.msl`), verified pixel-identical to the CPU renderer — see [12-gpu-compute.md](12-gpu-compute.md) |
 | **Defence requirement:** live scene manipulation with own tooling | `./rt path/to/scene.rt` swaps the whole scene with no rebuild; `scenes/*.rt` are ready-made examples covering all 4 primitives, multiple lights, and non-trivial rotations |
 
 ## Reference scenes
