@@ -12,22 +12,46 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
+        backend: [minilibx, sdl3-gpu]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies (Linux)
+      - name: Install dependencies (Linux, MiniLibX)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ make xorg libxext-dev libbsd-dev
 
-      - name: Install dependencies (macOS)
+      # SDL3 is fetched and built from source by the Makefile itself (see
+      # `make GPU=1`); these are only the extra headers/libs its CMake
+      # build needs to detect a usable Linux video backend (X11 + the
+      # cursor/randr/fixes/input/screensaver/xtest/xkb extensions it
+      # checks for), plus cmake/curl to run that build at all.
+      - name: Install dependencies (Linux, SDL3 GPU backend)
+        if: runner.os == 'Linux' && matrix.backend == 'sdl3-gpu'
+        run: |
+          sudo apt-get install -y cmake libxcursor-dev libxrandr-dev \
+            libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libxtst-dev
+
+      - name: Install dependencies (macOS, MiniLibX)
         if: runner.os == 'macOS'
         run: xcode-select --install 2>/dev/null || true
 
-      - name: Build
+      # cmake is the only extra tool macOS runners need for `make GPU=1`
+      # (curl and the Cocoa/Metal/... frameworks it links against already
+      # ship with the OS / Command Line Tools).
+      - name: Install dependencies (macOS, SDL3 GPU backend)
+        if: runner.os == 'macOS' && matrix.backend == 'sdl3-gpu'
+        run: brew install cmake 2>/dev/null || true
+
+      - name: Build (MiniLibX backend)
+        if: matrix.backend == 'minilibx'
         run: make
+
+      - name: Build (SDL3 GPU compute backend)
+        if: matrix.backend == 'sdl3-gpu'
+        run: make GPU=1
 
       - name: fclean (sanity check)
         run: make fclean

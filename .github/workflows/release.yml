@@ -71,24 +71,47 @@ jobs:
         include:
           - os: ubuntu-latest
             asset_name: rt-linux-x86_64
+            gpu: false
+          - os: ubuntu-latest
+            asset_name: rt-linux-x86_64-sdl3-gpu
+            gpu: true
           - os: macos-latest
             asset_name: rt-macos
+            gpu: false
+          - os: macos-latest
+            asset_name: rt-macos-sdl3-gpu
+            gpu: true
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install dependencies (Linux)
+      - name: Install dependencies (Linux, MiniLibX)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc g++ make xorg libxext-dev libbsd-dev
 
-      - name: Install dependencies (macOS)
+      - name: Install dependencies (Linux, SDL3 GPU backend)
+        if: runner.os == 'Linux' && matrix.gpu
+        run: |
+          sudo apt-get install -y cmake libxcursor-dev libxrandr-dev \
+            libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libxtst-dev
+
+      - name: Install dependencies (macOS, MiniLibX)
         if: runner.os == 'macOS'
         run: xcode-select --install 2>/dev/null || true
 
-      - name: Build release binary
+      - name: Install dependencies (macOS, SDL3 GPU backend)
+        if: runner.os == 'macOS' && matrix.gpu
+        run: brew install cmake 2>/dev/null || true
+
+      - name: Build release binary (MiniLibX backend)
+        if: ${{ !matrix.gpu }}
         run: make release
+
+      - name: Build release binary (SDL3 GPU compute backend)
+        if: matrix.gpu
+        run: make GPU=1 release
 
       - name: Package binary and scenes
         run: |
