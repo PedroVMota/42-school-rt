@@ -120,6 +120,31 @@ struct Mat3
 				r.m[i][j] = m[j][i];
 		return r;
 	}
+
+#ifdef GPU_COMPUTING_COMPATIBILITY
+	/* GLSL/HLSL mat3 under std430 is laid out as 3 columns, each padded to
+	** a 16-byte vec4 (48 bytes total) - so GPUMat3 below stores this
+	** matrix's 3 rows as Vec3 (already a padded vec4, see Vec3.hpp), and the
+	** shader reads them as 3 vec4 rows and takes .xyz. Row-vs-column is just
+	** a naming choice here since m[][] is only ever used for the row-major
+	** m*v product on the CPU side; the shader does the equivalent dot
+	** products against these same 3 rows. */
+	struct GPUMat3
+	{
+		Vec3	row0;
+		Vec3	row1;
+		Vec3	row2;
+	};
+
+	GPUMat3	toGPU() const
+	{
+		return GPUMat3{
+			Vec3(m[0][0], m[0][1], m[0][2]),
+			Vec3(m[1][0], m[1][1], m[1][2]),
+			Vec3(m[2][0], m[2][1], m[2][2]),
+		};
+	}
+#endif
 };
 
 #endif

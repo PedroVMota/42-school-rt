@@ -10,6 +10,12 @@
 ** With -O3 -ffast-math (release build) gcc/clang auto-vectorize these
 ** operators; no hand-written intrinsics needed to get the SIMD win, which
 ** keeps the code portable across x86/ARM.
+**
+** This layout (four floats, 16-byte aligned) is also exactly a GLSL/HLSL
+** vec4 under std430 rules, so under GPU_COMPUTING_COMPATIBILITY Vec3 is
+** already GPU-storage-buffer-ready as-is - no separate GPUVec4 wrapper or
+** toGPU() needed, unlike Mat3/Transform/Material/Light/Camera below, whose
+** CPU layouts don't already match std430 and so get their own GPU mirrors.
 */
 struct alignas(16) Vec3
 {
