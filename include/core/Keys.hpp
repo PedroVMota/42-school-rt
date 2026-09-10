@@ -1,6 +1,27 @@
 #ifndef KEYS_HPP
 #define KEYS_HPP
 
+#ifdef GPU_COMPUTING_COMPATIBILITY
+
+/*
+** SDL3 reports scancodes (physical key position, layout-independent) the
+** same way on every platform, so unlike the MLX branch below there's no
+** per-OS split needed here.
+*/
+# include "sdl_wrapper.hpp"
+
+# define KEY_ESC	SDL_SCANCODE_ESCAPE
+# define KEY_W		SDL_SCANCODE_W
+# define KEY_S		SDL_SCANCODE_S
+# define KEY_A		SDL_SCANCODE_A
+# define KEY_D		SDL_SCANCODE_D
+# define KEY_LEFT	SDL_SCANCODE_LEFT
+# define KEY_RIGHT	SDL_SCANCODE_RIGHT
+# define KEY_UP		SDL_SCANCODE_UP
+# define KEY_DOWN	SDL_SCANCODE_DOWN
+
+#else
+
 /*
 ** MiniLibX reports raw platform keycodes, which differ between the X11
 ** (Linux) and Cocoa (macOS) backends the Makefile builds against. Centralize
@@ -39,5 +60,7 @@
 # define MLX_KEYRELEASE		3
 # define MLX_KEYPRESS_MASK		(1L << 0)
 # define MLX_KEYRELEASE_MASK	(1L << 1)
+
+#endif /* GPU_COMPUTING_COMPATIBILITY */
 
 #endif
